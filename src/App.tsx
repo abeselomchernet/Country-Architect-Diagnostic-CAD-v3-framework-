@@ -5,11 +5,20 @@ import { TransmissionChain } from "./components/TransmissionChain";
 import { StabilityMeter } from "./components/StabilityMeter";
 import { DiagnosticRadar } from "./components/DiagnosticRadar";
 import { PolicyCopilot } from "./components/PolicyCopilot";
-import { Shield, BookOpen, Download, Printer } from "lucide-react";
+import { Shield, BookOpen, Download, Printer, Database } from "lucide-react";
+import { useAuth } from "./hooks/useAuth.ts";
+import { SavedScenarios } from "./components/SavedScenarios.tsx";
 
 export default function App() {
   const [selectedCountry, setSelectedCountry] = useState<string>("Ethiopia");
   const [selectedYear, setSelectedYear] = useState<number>(2021);
+
+  const { user, token, loginWithGoogle, logout } = useAuth();
+
+  const handleLoadScenario = (country: string, year: number) => {
+    setSelectedCountry(country);
+    setSelectedYear(year);
+  };
 
   // Get active country's 2021 scores
   const getCountry2021Rec = (country: string) => {
@@ -98,21 +107,62 @@ export default function App() {
             </p>
           </div>
 
-          {/* Bidirectional Pills for Country Selection */}
-          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl">
-            {countries.map((c) => (
-              <button
-                key={c}
-                onClick={() => setSelectedCountry(c)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                  selectedCountry === c
-                    ? "bg-white text-slate-900 shadow-sm font-bold"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 self-stretch md:self-auto flex-wrap">
+            {/* Bidirectional Pills for Country Selection */}
+            <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl">
+              {countries.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setSelectedCountry(c)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                    selectedCountry === c
+                      ? "bg-white text-slate-900 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+
+            {/* Google Authentication Control */}
+            <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+              {user ? (
+                <div className="flex items-center gap-2">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || "User"}
+                      referrerPolicy="no-referrer"
+                      className="w-7 h-7 rounded-full border border-slate-200"
+                    />
+                  ) : (
+                    <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold flex items-center justify-center">
+                      {(user.email || "P").slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="hidden sm:block text-left">
+                    <p className="text-[10px] font-bold text-slate-800 leading-none">
+                      {user.displayName || "Authorized Client"}
+                    </p>
+                    <button
+                      onClick={logout}
+                      className="text-[9px] hover:underline text-rose-600 block hover:text-rose-800 leading-none mt-1 cursor-pointer"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={loginWithGoogle}
+                  className="bg-indigo-600 hover:bg-indigo-750 text-white font-bold text-[11px] px-3  py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-xs cursor-pointer"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  Connect DB
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -163,107 +213,123 @@ export default function App() {
             />
           </div>
 
-          {/* Frozen 2021 expert findings brief */}
-          <div className="col-span-1 lg:col-span-5 bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col justify-between h-[520px]">
-            <div>
-              <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-slate-700" />
-                  <div>
-                    <h3 className="text-base font-bold text-slate-800">
-                      2021 Frozen Baseline Report
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      CAD v3 Val-Construct calculations & metrics
+          {/* Frozen 2021 expert findings brief & Saved Scenarios Ledger Stack */}
+          <div className="col-span-1 lg:col-span-5 flex flex-col gap-6">
+            {/* Card 1: 2021 Frozen Baseline Report */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col justify-between min-h-[440px] h-auto">
+              <div>
+                <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-slate-700" />
+                    <div>
+                      <h3 className="text-base font-bold text-slate-800">
+                        2021 Frozen Baseline Report
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        CAD v3 Val-Construct calculations & metrics
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={exportToCSV}
+                      title="Export country multi-year metrics to CSV file"
+                      className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold px-2 py-1 rounded-lg transition-all cursor-pointer"
+                    >
+                      <Download className="w-3 h-3 text-indigo-600" />
+                      CSV
+                    </button>
+                    <button
+                      onClick={() => window.print()}
+                      title="Export print-ready PDF summary docket"
+                      className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 border border-indigo-200 text-[10px] font-bold px-2 py-1 rounded-lg transition-all cursor-pointer"
+                    >
+                      <Printer className="w-3 h-3 text-indigo-600" />
+                      Print PDF
+                    </button>
+                  </div>
+                </div>
+
+                {/* Verified baseline statistics table */}
+                <div className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/50 mb-4">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-slate-100 text-slate-600 font-bold uppercase border-b border-slate-200">
+                      <tr>
+                        <th className="px-3 py-2">Country Code</th>
+                        <th className="px-3 py-2 text-center">GSV</th>
+                        <th className="px-3 py-2 text-center">ITC</th>
+                        <th className="px-3 py-2 text-right">Composite (Avg)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono">
+                      <tr className={selectedCountry === "Ethiopia" ? "bg-amber-50/50 font-bold" : ""}>
+                        <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Ethiopia</td>
+                        <td className="px-3 py-2 text-center">4.6</td>
+                        <td className="px-3 py-2 text-center">2.1</td>
+                        <td className="px-3 py-2 text-right text-indigo-650">3.35</td>
+                      </tr>
+                      <tr className={selectedCountry === "Kenya" ? "bg-emerald-50/50 font-bold" : ""}>
+                        <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Kenya</td>
+                        <td className="px-3 py-2 text-center">4.8</td>
+                        <td className="px-3 py-2 text-center">4.5</td>
+                        <td className="px-3 py-2 text-right text-indigo-650">4.65</td>
+                      </tr>
+                      <tr className={selectedCountry === "Rwanda" ? "bg-blue-50/50 font-bold" : ""}>
+                        <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Rwanda</td>
+                        <td className="px-3 py-2 text-center">4.7</td>
+                        <td className="px-3 py-2 text-center">4.8</td>
+                        <td className="px-3 py-2 text-right text-indigo-650">4.75</td>
+                      </tr>
+                      <tr className={selectedCountry === "Sierra Leone" ? "bg-purple-50/50" : ""}>
+                        <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Sierra Leone</td>
+                        <td className="px-3 py-2 text-center">3.9</td>
+                        <td className="px-3 py-2 text-center">2.4</td>
+                        <td className="px-3 py-2 text-right text-indigo-650">3.15</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Rules description */}
+                <div className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-lg">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                      Normalisation Rules
+                    </span>
+                    <ul className="text-[11px] text-slate-650 space-y-1 pl-4 list-disc font-sans leading-tight">
+                      <li>Positive indicators: <code className="font-mono bg-slate-200/50 px-1 rounded text-[9.5px]">Value / 10</code></li>
+                      <li>Inverse indicators: <code className="font-mono bg-slate-200/50 px-1 rounded text-[9.5px]">(100 - Value) / 10</code> (e.g. NPL, constraints)</li>
+                      <li>Binary switches: <code className="font-mono bg-slate-200/50 px-1 rounded text-[9.5px]">Yes = 10, No = 0</code></li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-lg leading-relaxed">
+                    <span className="text-[10px] uppercase font-bold text-amber-600 block mb-0.5">
+                      GSV Momentum Analysis (Ethiopia)
+                    </span>
+                    <p className="text-[10px] text-slate-700">
+                      The single most significant policy event explaining Ethiopia's GSV momentum leading up to 2021 was the **NBE permitting licensing of non-bank telecom mobile money in 2020** (Directive ON補助/01/2020). This broke the state monopoly, giving rise to **Telebirr** and triggering an explosive surge in nominal accounts registration up to 43.5% (2021) and 63.0% (2024).
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
-                  <button
-                    onClick={exportToCSV}
-                    title="Export country multi-year metrics to CSV file"
-                    className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold px-2 py-1 rounded-lg transition-all"
-                  >
-                    <Download className="w-3 h-3 text-indigo-600" />
-                    CSV
-                  </button>
-                  <button
-                    onClick={() => window.print()}
-                    title="Export print-ready PDF summary docket"
-                    className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 border border-indigo-200 text-[10px] font-bold px-2 py-1 rounded-lg transition-all"
-                  >
-                    <Printer className="w-3 h-3 text-indigo-600" />
-                    Print PDF
-                  </button>
-                </div>
               </div>
 
-              {/* Verified baseline statistics table */}
-              <div className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/50 mb-4.5">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-100 text-slate-600 font-bold uppercase border-b border-slate-200">
-                    <tr>
-                      <th className="px-3 py-2">Country Code</th>
-                      <th className="px-3 py-2 text-center">GSV</th>
-                      <th className="px-3 py-2 text-center">ITC</th>
-                      <th className="px-3 py-2 text-right">Composite (Avg)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono">
-                    <tr className={selectedCountry === "Ethiopia" ? "bg-amber-50/50" : ""}>
-                      <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Ethiopia</td>
-                      <td className="px-3 py-2 text-center">4.6</td>
-                      <td className="px-3 py-2 text-center">2.1</td>
-                      <td className="px-3 py-2 text-right font-bold">3.35</td>
-                    </tr>
-                    <tr className={selectedCountry === "Kenya" ? "bg-emerald-50/50" : ""}>
-                      <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Kenya</td>
-                      <td className="px-3 py-2 text-center">4.8</td>
-                      <td className="px-3 py-2 text-center">4.5</td>
-                      <td className="px-3 py-2 text-right font-bold">4.65</td>
-                    </tr>
-                    <tr className={selectedCountry === "Rwanda" ? "bg-blue-50/50" : ""}>
-                      <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Rwanda</td>
-                      <td className="px-3 py-2 text-center">4.7</td>
-                      <td className="px-3 py-2 text-center">4.8</td>
-                      <td className="px-3 py-2 text-right font-bold">4.75</td>
-                    </tr>
-                    <tr className={selectedCountry === "Sierra Leone" ? "bg-purple-50/50" : ""}>
-                      <td className="px-3 py-2 text-slate-900 font-semibold font-sans">Sierra Leone</td>
-                      <td className="px-3 py-2 text-center">3.9</td>
-                      <td className="px-3 py-2 text-center">2.4</td>
-                      <td className="px-3 py-2 text-right font-bold">3.15</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Rules description */}
-              <div className="space-y-3">
-                <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                    Normalisation Rules
-                  </span>
-                  <ul className="text-[11px] text-slate-650 space-y-1 pl-4 list-disc font-sans leading-tight">
-                    <li>Positive indicators: <code className="font-mono bg-slate-200/50 px-1 rounded">Value / 10</code></li>
-                    <li>Inverse indicators: <code className="font-mono bg-slate-200/50 px-1 rounded">(100 - Value) / 10</code> (e.g. NPL, constraints)</li>
-                    <li>Binary switches: <code className="font-mono bg-slate-200/50 px-1 rounded">Yes = 10, No = 0</code></li>
-                  </ul>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg leading-relaxed">
-                  <span className="text-[10px] uppercase font-bold text-amber-600 block mb-0.5">
-                    GSV Momentum Analysis (Ethiopia)
-                  </span>
-                  <p className="text-[11px] text-slate-700">
-                    The single most significant policy event explaining Ethiopia's GSV momentum leading up to 2021 was the **NBE permitting licensing of non-bank telecom mobile money in 2020** (Directive ON補助/01/2020). This broke the state-owned monopoly, giving rise to **Telebirr** and triggering an explosive surge in nominal accounts registration up to 43.5% (2021) and 63.0% (2024).
-                  </p>
-                </div>
+              <div className="border-t border-slate-100 pt-2 mt-4 text-[9px] text-slate-400 italic font-mono text-center">
+                Replication: CAD Validation Package • Chernet, June 2026
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-3 text-[10px] text-slate-450 italic font-mono text-center">
-              Replication: CAD Validation Package • Abeselom Chernet, June 2026
+            {/* Card 2: Cloud SQL Policy Sandbox Saved Scenarios */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm min-h-[300px]">
+              <SavedScenarios
+                user={user}
+                token={token}
+                activeCountry={selectedCountry}
+                activeYear={selectedYear}
+                activeGsv={activeRecord?.gsv || 0}
+                activeItc={activeRecord?.itc || 0}
+                onLoadScenario={handleLoadScenario}
+              />
             </div>
           </div>
         </div>

@@ -3,6 +3,8 @@ import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import { countryPanels, policyEvents } from "./src/data.ts";
+import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { getOrCreateUser, getSavedScenarios, saveScenario, deleteSavedScenario } from "./src/db/queries.ts";
 
 const app = express();
 const PORT = 3000;
@@ -25,6 +27,80 @@ function getAiClient(): GoogleGenAI {
 // Health Check API
 app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
+// Relational User Registration Sync
+app.post("/api/users", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    const email = req.user?.email || "";
+    if (!uid) {
+      return res.status(400).json({ error: "Invalid registration user data" });
+    }
+    const user = await getOrCreateUser(uid, email);
+    res.json(user);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to register user to Cloud SQL database" });
+  }
+});
+
+// Get Secured Policy Scenarios
+app.get("/api/scenarios", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    const email = req.user?.email || "";
+    if (!uid) {
+      return res.status(401).json({ error: "Authentication credentials mismatch" });
+    }
+    const user = await getOrCreateUser(uid, email);
+    const scenarios = await getSavedScenarios(user.id);
+    res.json(scenarios);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to load policy scenarios" });
+  }
+});
+
+// Save Scenarios to SQL Database
+app.post("/api/scenarios", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    const email = req.user?.email || "";
+    if (!uid) {
+      return res.status(401).json({ error: "Authentication credentials mismatch" });
+    }
+    const user = await getOrCreateUser(uid, email);
+    const { country, year, notes, gsvVal, itcVal } = req.body;
+    if (!country || !year || !notes) {
+      return res.status(400).json({ error: "Missing required scenario values" });
+    }
+    const saved = await saveScenario(user.id, {
+      country,
+      year: Number(year),
+      notes,
+      gsvVal: String(gsvVal),
+      itcVal: String(itcVal),
+    });
+    res.json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save scenario" });
+  }
+});
+
+// Delete Specific Scenario record
+app.delete("/api/scenarios/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const uid = req.user?.uid;
+    const email = req.user?.email || "";
+    if (!uid) {
+      return res.status(401).json({ error: "Authentication credentials mismatch" });
+    }
+    const user = await getOrCreateUser(uid, email);
+    const id = Number(req.params.id);
+    const deleted = await deleteSavedScenario(user.id, id);
+    res.json(deleted);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to delete saved scenario" });
+  }
 });
 
 // Full-fidelity CAD v3 Chat Assistant Proxy
