@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { policyEvents, PolicyEvent, countryPanels, CountryData } from "../data";
 import { Zap, ArrowRight, LineChart } from "lucide-react";
 
@@ -105,6 +105,12 @@ export const TransmissionChain: React.FC<TransmissionChainProps> = ({
 }) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeSimulationId, setActiveSimulationId] = useState<string | null>(null);
+
+  // Reset simulation and event when country changes to prevent cross-country referencing errors
+  useEffect(() => {
+    setActiveSimulationId(null);
+    setSelectedEventId(null);
+  }, [selectedCountry]);
 
   // Filter events for the current country leading up to or on the current year
   const countryEvents = policyEvents
@@ -235,7 +241,7 @@ export const TransmissionChain: React.FC<TransmissionChainProps> = ({
               })}
             </div>
 
-            {activeSimulationId && (
+            {activeSimulationId && activeScenarios.some((s) => s.id === activeSimulationId) && (
               (() => {
                 const scen = activeScenarios.find((s) => s.id === activeSimulationId)!;
                 return (
