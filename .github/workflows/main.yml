@@ -1,0 +1,36 @@
+name: CAD v3 Policy Architect Explorer CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: Build, Lint, and E2E Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Project Dependencies
+        run: npm ci || npm install
+
+      - name: Run Typings verification (Linter)
+        run: npm run lint
+
+      - name: Compile Code and Build Front/Backend Production Packages
+        run: npm run build
+
+      - name: Execute Full-Stack E2E Smoke Tests
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}  # Bind secret key if set in repo repository
+        run: npm run test:smoke

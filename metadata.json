@@ -1,0 +1,6 @@
+{
+  "name": "Policy Architect Explorer",
+  "description": "An intelligent CAD v3 macroeconomic policy simulation and diagnostic dashboard for emerging financial ecosystems.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
