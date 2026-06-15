@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Validation Blueprint for SavedScenario
+    function isValidSavedScenario(data) {
+      return data.keys().hasAll(['userId', 'country', 'year', 'notes', 'gsvVal', 'itcVal', 'createdAt'])
+        && data.keys().size() == 7
+        && data.userId == request.auth.uid
+        && data.country is string && data.country.size() <= 100
+        && data.year is number
+        && data.notes is string && data.notes.size() <= 50000
+        && data.gsvVal is string && data.gsvVal.size() <= 20
+        && data.itcVal is string && data.itcVal.size() <= 20
+        && data.createdAt == request.time;
+    }
+
+    match /users/{userId}/savedScenarios/{scenarioId} {
+      allow list: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      // No updates needed based on current requirements (only saves and deletes)
+      allow create: if isSignedIn() 
+                    && request.auth.uid == userId 
+                    && isValidId(scenarioId) 
+                    && isValidSavedScenario(incoming());
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+  }
+}

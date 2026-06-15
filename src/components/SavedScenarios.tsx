@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Database, Trash2, Plus, RefreshCw, Send, Check } from "lucide-react";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "firebase/firestore";
+import { db, OperationType, handleFirestoreError } from "../lib/firebase";
 
 interface SavedScenario {
-  id: number;
+  id: string;
   country: string;
   year: number;
   notes: string;
   gsvVal: string;
   itcVal: string;
-  createdAt: string;
+  createdAt: any;
 }
 
 interface SavedScenariosProps {
@@ -36,82 +38,64 @@ export function SavedScenarios({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string>("");
 
-  const fetchScenarios = async () => {
-    if (!token) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/scenarios", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setScenarios(data);
-      }
-    } catch (err) {
-      console.error("Failed to load scenarios:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (token) {
-      fetchScenarios();
-    } else {
+    if (!user?.uid) {
       setScenarios([]);
+      return;
     }
-  }, [token]);
+
+    setIsLoading(true);
+    const scenariosRef = collection(db, "users", user.uid, "savedScenarios");
+    const q = query(scenariosRef, orderBy("createdAt", "asc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data: SavedScenario[] = [];
+      snapshot.forEach((doc) => {
+        data.push({ id: doc.id, ...doc.data() } as SavedScenario);
+      });
+      setScenarios(data);
+      setIsLoading(false);
+    }, (error) => {
+      setIsLoading(false);
+      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/savedScenarios`);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newNotes.trim()) return;
+    if (!user?.uid || !newNotes.trim()) return;
 
     setIsSaving(true);
     try {
-      const res = await fetch("/api/scenarios", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          country: activeCountry,
-          year: activeYear,
-          notes: newNotes,
-          gsvVal: activeGsv.toFixed(2),
-          itcVal: activeItc.toFixed(2),
-        }),
+      const scenariosRef = collection(db, "users", user.uid, "savedScenarios");
+      await addDoc(scenariosRef, {
+        userId: user.uid,
+        country: activeCountry,
+        year: activeYear,
+        notes: newNotes,
+        gsvVal: activeGsv.toFixed(2),
+        itcVal: activeItc.toFixed(2),
+        createdAt: serverTimestamp(),
       });
-
-      if (res.ok) {
-        setNewNotes("");
-        setSuccessMsg("Scenario saved success!");
-        setTimeout(() => setSuccessMsg(""), 3000);
-        await fetchScenarios();
-      }
+      setNewNotes("");
+      setSuccessMsg("Scenario saved success!");
+      setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
-      console.error("Failed to save scenario:", err);
+      handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/savedScenarios`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!token) return;
+  const handleDelete = async (id: string) => {
+    if (!user?.uid) return;
     try {
-      const res = await fetch(`/api/scenarios/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        await fetchScenarios();
-      }
+      const scenarioRef = doc(db, "users", user.uid, "savedScenarios", id);
+      await deleteDoc(scenarioRef);
     } catch (err) {
-      console.error("Failed to delete scenario:", err);
+      handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/savedScenarios/${id}`);
     }
   };
 
@@ -138,12 +122,11 @@ export function SavedScenarios({
               <Database className="w-3.5 h-3.5" />
             </span>
             <span className="text-xs uppercase font-black tracking-wider text-slate-700">
-              Cloud SQL Policy Ledger
+              Firestore Policy Ledger
             </span>
           </div>
           <button
-            onClick={fetchScenarios}
-            title="Reload ledger logs"
+            title="Real-time syncing enabled"
             className="p-1 hover:bg-slate-100 rounded-md transition-all text-slate-400 hover:text-slate-600"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-indigo-600" : ""}`} />

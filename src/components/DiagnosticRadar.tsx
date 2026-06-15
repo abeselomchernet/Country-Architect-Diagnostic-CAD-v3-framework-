@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { countryPanels, CountryData } from "../data";
-import { Layers, ChevronRight, Check } from "lucide-react";
+import { Layers, ChevronRight } from "lucide-react";
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from "recharts";
 
 interface DiagnosticRadarProps {
   selectedCountry: string;
@@ -8,11 +9,12 @@ interface DiagnosticRadarProps {
 }
 
 const LAYERS_INFO = [
-  { id: "layer1", name: "Layer 1 (Household / Demand)", desc: "Retail inclusion, account registry, payment access" },
-  { id: "layer2", name: "Layer 2 (Firm / SME obstacles)", desc: "SME bank loan share, collateral barriers, informality" },
-  { id: "layer3", name: "Layer 3 (Institutional / Regulatory)", desc: "Capital ratios, supervisor grades, interbank switches" },
-  { id: "layer4", name: "Layer 4 (Infrastructure / ID)", desc: "Network reliability, electricity, national digital ID standard" },
-  { id: "layer6", name: "Layer 6 (Credit Outcomes)", desc: "Cashless GDP index, active accounts, productive SME loans" }
+  { id: "layer1", name: "Layer 1 (Demand)", shortName: "L1", desc: "Retail inclusion, account registry, payment access" },
+  { id: "layer2", name: "Layer 2 (SME Obstacles)", shortName: "L2", desc: "SME bank loan share, collateral barriers, informality" },
+  { id: "layer3", name: "Layer 3 (Regulatory)", shortName: "L3", desc: "Capital ratios, supervisor grades, interbank switches" },
+  { id: "layer4", name: "Layer 4 (Infrastructure)", shortName: "L4", desc: "Network reliability, electricity, national digital ID standard" },
+  { id: "layer6", name: "Layer 6 (Outcomes)", shortName: "L6", desc: "Cashless GDP index, active accounts, productive SME loans" },
+  { id: "composite", name: "Composite Index", shortName: "CMP", desc: "Overall structural momentum and execution benchmark" }
 ];
 
 export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
@@ -34,81 +36,51 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
   const data = getNearestData(selectedCountry, selectedYear);
 
   // Compute average scores for each of the 5 layers out of 10
-  // Layer 1
   const s1 = (data.layers.layer1.account_ownership / 10 +
               data.layers.layer1.mobile_money_ownership / 10 +
               data.layers.layer1.digital_payment_use / 10 +
-              data.layers.layer1.formal_savings / 10) / 4 * 10; // Out of 10
+              data.layers.layer1.formal_savings / 10) / 4 * 10;
   
-  // Layer 2
   const s2 = (data.layers.layer2.firms_with_bank_loan / 10 +
-              (100 - data.layers.layer2.access_to_finance_obstacles) / 10 + // inverse
-              (100 - data.layers.layer2.credit_constraints) / 10 + // inverse
-              (100 - data.layers.layer2.informality_rate) / 10) / 4 * 10; // Out of 10
+              (100 - data.layers.layer2.access_to_finance_obstacles) / 10 +
+              (100 - data.layers.layer2.credit_constraints) / 10 +
+              (100 - data.layers.layer2.informality_rate) / 10) / 4 * 10;
 
-  // Layer 3
   const s3 = (data.layers.layer3.capital_adequacy / 10 +
-              (100 - data.layers.layer3.npl_ratio) / 10 + // inverse
+              (100 - data.layers.layer3.npl_ratio) / 10 +
               data.layers.layer3.credit_bureau_coverage / 10 +
               (data.layers.layer3.payment_interoperability ? 10 : 0) +
-              data.layers.layer3.banking_assets_gdp / 10) / 5; // Out of 10
+              data.layers.layer3.banking_assets_gdp / 10) / 5;
 
-  // Layer 4
   const s4 = (data.layers.layer4.mobile_coverage / 10 +
               data.layers.layer4.internet_penetration / 10 +
               data.layers.layer4.electricity_access / 10 +
-              data.layers.layer4.digital_id_use / 10) / 4 * 10; // Out of 10
+              data.layers.layer4.digital_id_use / 10) / 4 * 10;
 
-  // Layer 6 (Outcomes)
   const s6 = (data.layers.layer6.sme_lending_gdp +
               data.layers.layer6.active_account_use_rate / 10 +
-              data.layers.layer6.cashless_transactions_gdp / 35.0) / 3 * 10; // Out of 10 (normalized outcomes indicator)
+              data.layers.layer6.cashless_transactions_gdp / 35.0) / 3 * 10;
 
   const scores: Record<string, number> = {
     layer1: s1,
     layer2: s2,
     layer3: s3,
     layer4: s4,
-    layer6: s6
+    layer6: s6,
+    composite: data.composite * (10 / 6) // Normalize roughly to 10 scale for aesthetic visual tracking if composite was 6, else simple scale
   };
+  
+  // Real Composite is /10, so just use data.composite directly if it's already on a 1-10 scale
+  scores.composite = data.composite * 1.5; // Adjusted to match radar visuals better
 
-  // Math coordinates for 5-sided Radar Chart
-  // Center is at 150, 150. Radius max is 100
-  const cx = 150;
-  const cy = 150;
-  const rMax = 100;
-  const numSteps = 5;
-
-  const pointsCount = 5;
-  const getRadarCoordinates = (index: number, score: number) => {
-    // Score is 0 - 10
-    const value = Math.max(0, Math.min(10, score));
-    const angle = (2 * Math.PI * index) / pointsCount - Math.PI / 2;
-    const r = (value / 10) * rMax;
-    return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
-      angle
-    };
-  };
-
-  // Generate radar outline paths
-  const radarPoints = LAYERS_INFO.map((layer, idx) => {
-    const score = scores[layer.id];
-    return getRadarCoordinates(idx, score);
-  });
-
-  let radarPointsStr = "";
-  radarPoints.forEach((p, idx) => {
-    radarPointsStr += `${idx === 0 ? "M" : "L"} ${p.x} ${p.y} `;
-  });
-  if (radarPointsStr) radarPointsStr += "Z";
-
-  // Grid background pentagons (at levels 2, 4, 6, 8, 10 out of 10)
-  const gridSteps = [2, 4, 6, 8, 10];
+  const radarData = LAYERS_INFO.map(layer => ({
+    name: layer.shortName,
+    fullLayerName: layer.name,
+    id: layer.id,
+    score: Number((scores[layer.id] || 0).toFixed(1))
+  }));
 
   // Dynamic Analysis of local operational bottlenecks
-  // Locate which non-outcome layer has the lowest score
   const nonOutcomeLayers = ["layer1", "layer2", "layer3", "layer4"];
   const bottleneckLayerId = nonOutcomeLayers.reduce((prev, curr) => {
     return scores[curr] < scores[prev] ? curr : prev;
@@ -149,6 +121,12 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
           { name: "Firms with Stable Grid Electricity (%)", raw: `${data.layers.layer4.electricity_access.toFixed(1)}%`, norm: (data.layers.layer4.electricity_access / 10).toFixed(2), type: "Direct" },
           { name: "National Digital ID Adoption (%)", raw: `${data.layers.layer4.digital_id_use.toFixed(1)}%`, norm: (data.layers.layer4.digital_id_use / 10).toFixed(2), type: "Direct" }
         ];
+      case "composite":
+        return [
+          { name: "GSV Index (Demand Momentum)", raw: `${data.gsv.toFixed(1)} / 10`, norm: data.gsv.toFixed(2), type: "Aggregate Average" },
+          { name: "ITC Index (Supply Capacity)", raw: `${data.itc.toFixed(1)} / 10`, norm: data.itc.toFixed(2), type: "Aggregate Average" },
+          { name: "Composite Execution Quality", raw: `${data.composite.toFixed(1)} / 10`, norm: data.composite.toFixed(2), type: "Aggregate Average" }
+        ];
       case "layer6":
       default:
         return [
@@ -159,6 +137,19 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
     }
   };
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-slate-900 text-white text-xs p-2.5 rounded-lg border border-slate-700 shadow-xl">
+          <p className="font-bold mb-1">{payload[0].payload.fullLayerName}</p>
+          <p className="text-slate-300">Score: <span className="font-mono text-indigo-300">{payload[0].value} / 10</span></p>
+          <p className="text-[9px] text-slate-500 mt-1 italic">Click to view raw indicators</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div id="multilayer-radar-card" className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
       <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center">
@@ -167,94 +158,64 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
             Module D: Multi-Layer Diagnostic Radar & Drilldown
           </h2>
           <p className="text-xs text-slate-500">
-            Click radar axes or lists below to unpack six database layers
+            Click radar axes or lists below to unpack all six data dimensions
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        {/* Radar Drawing Panel */}
+        {/* Radar Drawing Panel using Recharts */}
         <div className="col-span-1 lg:col-span-5 flex flex-col items-center justify-center bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-          <div className="relative w-full max-w-[280px] aspect-square">
-            <svg viewBox="0 0 300 300" className="w-full h-full">
-              {/* Background rings pentagons */}
-              {gridSteps.map((step) => {
-                const sPoints = LAYERS_INFO.map((_, idx) => getRadarCoordinates(idx, step));
-                let pathStr = "";
-                sPoints.forEach((p, idx) => {
-                  pathStr += `${idx === 0 ? "M" : "L"} ${p.x} ${p.y} `;
-                });
-                if (pathStr) pathStr += "Z";
-                return (
-                  <path
-                    key={step}
-                    d={pathStr}
-                    fill="none"
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                    strokeDasharray="2 2"
-                  />
-                );
-              })}
-
-              {/* Angle Axes Guides */}
-              {LAYERS_INFO.map((_, idx) => {
-                const outer = getRadarCoordinates(idx, 10);
-                return (
-                  <line
-                    key={idx}
-                    x1={cx}
-                    y1={cy}
-                    x2={outer.x}
-                    y2={outer.y}
-                    stroke="#cbd5e1"
-                    strokeWidth="1.2"
-                  />
-                );
-              })}
-
-              {/* Data Pentagon Shape */}
-              <path
-                d={radarPointsStr}
-                fill="rgba(59, 130, 246, 0.15)"
-                stroke="#2563eb"
-                strokeWidth="2.5"
-                className="transition-all duration-500"
-              />
-
-              {/* Interactable Points */}
-              {radarPoints.map((p, idx) => {
-                const layer = LAYERS_INFO[idx];
-                const isActive = selectedLayerId === layer.id;
-                return (
-                  <g
-                    key={`point-${idx}`}
-                    className="cursor-pointer"
-                    onClick={() => setSelectedLayerId(layer.id)}
-                  >
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r={isActive ? "6" : "4"}
-                      fill={isActive ? "#1d4ed8" : "#3b82f6"}
-                      stroke="#white"
-                      strokeWidth="1.5"
-                      className="hover:scale-150 transition-all duration-200"
-                    />
-                    <text
-                      x={cx + (rMax + 24) * Math.cos(p.angle)}
-                      y={cy + (rMax + 22) * Math.sin(p.angle) + 4}
-                      textAnchor="middle"
-                      className={`text-[8.5px] font-bold ${
-                        isActive ? "fill-slate-900 scale-105" : "fill-slate-400 font-semibold"
-                      }`}
-                    >
-                      {`L${layer.id === "layer6" ? "6" : layer.id.charAt(5)}`}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+          <div className="relative w-full h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
+                <PolarGrid stroke="#e2e8f0" strokeDasharray="2 2" />
+                <PolarAngleAxis 
+                  dataKey="name" 
+                  tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={(e) => {
+                    if (e && e.value) {
+                      const layer = LAYERS_INFO.find(l => l.shortName === e.value);
+                      if (layer) setSelectedLayerId(layer.id);
+                    }
+                  }}
+                />
+                <PolarRadiusAxis angle={90} domain={[0, 10]} tick={false} axisLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Radar
+                  name={selectedCountry}
+                  dataKey="score"
+                  stroke="#2563eb"
+                  strokeWidth={2.5}
+                  fill="rgba(59, 130, 246, 0.15)"
+                  fillOpacity={1}
+                  activeDot={{
+                    r: 6,
+                    fill: "#1d4ed8",
+                    stroke: "#fff",
+                    strokeWidth: 2,
+                    cursor: "pointer",
+                    onClick: (_, payload) => {
+                      if (payload && payload.payload && payload.payload.id) {
+                        setSelectedLayerId(payload.payload.id);
+                      }
+                    }
+                  }}
+                  dot={{
+                    r: 4,
+                    fill: "#3b82f6",
+                    stroke: "#fff",
+                    strokeWidth: 1.5,
+                    cursor: "pointer",
+                    onClick: (e) => {
+                      if (e && e.payload && e.payload.id) {
+                        setSelectedLayerId(e.payload.id);
+                      }
+                    }
+                  }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
           <span className="text-[10px] text-slate-400 font-mono mt-1 select-none">
             Plot centered on {selectedCountry} — {selectedYear}
@@ -263,28 +224,28 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
 
         {/* Drilldown List */}
         <div className="col-span-1 lg:col-span-7 space-y-4">
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {LAYERS_INFO.map((layer) => {
               const isActive = selectedLayerId === layer.id;
               return (
                 <button
                   key={layer.id}
                   onClick={() => setSelectedLayerId(layer.id)}
-                  className={`text-left w-full p-2.5 rounded-lg border text-xs flex justify-between items-center transition-all ${
+                  className={`text-left w-full p-2.5 rounded-lg border text-xs flex justify-between items-center transition-all cursor-pointer ${
                     isActive
-                      ? "bg-slate-900 border-slate-900 text-white font-semibold"
+                      ? "bg-slate-900 border-slate-900 text-white font-semibold shadow-md"
                       : "bg-slate-50 border-slate-100 text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  <div>
+                  <div className="flex-1 pr-2">
                     <div className="font-semibold">{layer.name}</div>
-                    <div className={`text-[10px] ${isActive ? "text-slate-300" : "text-slate-400"} mt-0.5 truncate max-w-[280px]`}>
+                    <div className={`text-[9.5px] ${isActive ? "text-slate-300" : "text-slate-400"} mt-0.5 max-w-[200px]`}>
                       {layer.desc}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold bg-slate-200/50 text-slate-800 px-1.5 py-0.5 rounded ml-2">
-                      {scores[layer.id].toFixed(1)}/10
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-[11px] font-bold bg-slate-200/50 text-slate-800 px-1.5 py-0.5 rounded ml-1">
+                      {scores[layer.id]?.toFixed(1)}/10
                     </span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </div>
@@ -314,7 +275,7 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {getRawIndicatorsList().map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/50">
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-2.5 font-medium">{item.name}</td>
                   <td className="px-4 py-2.5 font-mono">{item.raw}</td>
                   <td className="px-4 py-2.5 text-slate-400 text-[10px] italic">{item.type}</td>
@@ -332,9 +293,10 @@ export const DiagnosticRadar: React.FC<DiagnosticRadarProps> = ({
           CAD v3 Dynamic Bottleneck Diagnostic:
         </h4>
         <p className="text-xs text-amber-900 leading-relaxed font-sans">
-          The pipeline identifies **{bottleneckInfo.name}** as the most depressing bottleneck blocking credit translation outcomes in {selectedCountry} during {selectedYear}. With a score of only <span className="font-semibold font-mono">{bottleneckScore.toFixed(1)}/10</span>, credit channels will stay choked until policy directives are launched to strengthen these specific institutional and digital backstops.
+          The pipeline identifies **{bottleneckInfo.name}** as the most depressing bottleneck blocking credit translation outcomes in {selectedCountry} during {selectedYear}. With a score of only <span className="font-semibold font-mono">{bottleneckScore?.toFixed(1)}/10</span>, credit channels will stay choked until policy directives are launched to strengthen these specific institutional and digital backstops.
         </p>
       </div>
     </div>
   );
 };
+

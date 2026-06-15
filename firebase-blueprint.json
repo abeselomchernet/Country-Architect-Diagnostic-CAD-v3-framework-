@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "SavedScenario": {
+      "title": "Saved Policy Scenario",
+      "description": "A user's saved macroeconomic diagnostic scenario.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the scenario creator"
+        },
+        "country": {
+          "type": "string"
+        },
+        "year": {
+          "type": "number"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "gsvVal": {
+          "type": "string"
+        },
+        "itcVal": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "country", "year", "notes", "gsvVal", "itcVal", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/savedScenarios/{scenarioId}": {
+      "schema": {
+        "$ref": "#/entities/SavedScenario"
+      },
+      "description": "User specific container for saved scenarios."
+    }
+  }
+}

@@ -14,14 +14,6 @@ export function useAuth() {
         try {
           const idToken = await currentUser.getIdToken(true);
           setToken(idToken);
-          // Sync user to Cloud SQL in the background
-          await fetch("/api/users", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-              "Content-Type": "application/json",
-            },
-          });
         } catch (e) {
           console.error("Error setting custom auth token:", e);
         }
